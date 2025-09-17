@@ -56,9 +56,7 @@ func (m *Memtable) recover(walDir string) error {
 		}
 	}
 
-	// In a more complex system, you would sort these files by a version number.
-	// For now, we process them in the order the OS gives them.
-
+	//sorting the files in the OS order
 	for _, oldWal := range walFiles {
 		entries, err := oldWal.Retrieve()
 		if err != nil {
