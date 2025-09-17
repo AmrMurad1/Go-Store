@@ -45,20 +45,15 @@ func (m *Memtable) recover(walDir string) error {
 	var walFiles []*Wal
 	for _, file := range files {
 		if !file.IsDir() && filepath.Ext(file.Name()) == ".log" {
-			// Open each WAL file found
 			oldWal, err := NewWal(walDir, file.Name())
 			if err != nil {
-				// Decide how to handle this - skip, log, or fail?
-				// For now, let's return the error.
 				return fmt.Errorf("could not open old WAL file %s: %w", file.Name(), err)
 			}
 			walFiles = append(walFiles, oldWal)
 		}
 	}
 
-	// In a more complex system, you would sort these files by a version number.
-	// For now, we process them in the order the OS gives them.
-
+    //sorting the files in the OS order
 	for _, oldWal := range walFiles {
 		entries, err := oldWal.Retrieve()
 		if err != nil {
@@ -66,17 +61,14 @@ func (m *Memtable) recover(walDir string) error {
 		}
 
 		for _, entry := range entries {
-			// Set the entry in the skiplist
 			sizeChange := m.skiplist.Set(shared.Entry{Key: shared.Key(entry.Key), Value: entry.Value})
 			m.size += sizeChange
 
-			// Write the entry to the *new* WAL file to consolidate it
 			if err := m.wal.Append(entry); err != nil {
 				return fmt.Errorf("could not append to new WAL: %w", err)
 			}
 		}
 
-		// Delete the old WAL file now that it has been processed
 		if err := oldWal.Delete(); err != nil {
 			return fmt.Errorf("could not delete old WAL file %s: %w", oldWal.path, err)
 		}
