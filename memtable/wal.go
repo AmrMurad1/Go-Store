@@ -46,6 +46,10 @@ func (w *Wal) Append(entry WALEntry) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	// Pad the key to KeySize
+	paddedKey := make([]byte, KeySize)
+	copy(paddedKey, []byte(entry.Key))
+
 	buf := make([]byte, 0, KeySize+4+len(entry.Value))
 	buf = append(buf, []byte(entry.Key)...)
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(entry.Value))) // Value length
@@ -104,4 +108,14 @@ func (w *Wal) Clear() error {
 func (w *Wal) Close() error {
 
 	return w.writer.Close()
+}
+
+func (w *Wal) Delete() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if err := w.writer.Close(); err != nil {
+		return err
+	}
+	return os.Remove(w.path)
 }

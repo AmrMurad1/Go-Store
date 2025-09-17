@@ -47,7 +47,7 @@ func (s *SkipList) Size() int {
 	return s.size
 }
 
-func (s *SkipList) Set(entry shared.Entry) {
+func (s *SkipList) Set(entry shared.Entry) int {
 	curr := s.head
 	update := make([]*Element, s.maxLevel)
 
@@ -60,10 +60,11 @@ func (s *SkipList) Set(entry shared.Entry) {
 
 	// update entry
 	if curr.next[0] != nil && shared.CompareKeys(curr.next[0].Key, entry.Key) == 0 {
-		s.size += len(entry.Value) - len(curr.next[0].Value)
+		sizeChange := len(entry.Value) - len(curr.next[0].Value)
+		s.size += sizeChange
 		curr.next[0].Value = entry.Value
 		curr.next[0].Tombstone = entry.Tombstone
-		return
+		return sizeChange
 	}
 
 	// add entry
@@ -90,10 +91,12 @@ func (s *SkipList) Set(entry shared.Entry) {
 		update[i].next[i] = e
 	}
 
-	s.size += len(entry.Key) + len(entry.Value) +
+	sizeChange := len(entry.Key) + len(entry.Value) +
 		int(unsafe.Sizeof(entry.Tombstone)) +
 		int(unsafe.Sizeof(entry.Version)) +
 		len(e.next)*int(unsafe.Sizeof((*Element)(nil)))
+	s.size += sizeChange
+	return sizeChange
 }
 
 func (s *SkipList) Get(key shared.Key) (shared.Entry, bool) {
