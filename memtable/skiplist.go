@@ -33,7 +33,7 @@ func New(maxLevel int, p float64) *SkipList {
 		size:     0,
 		head: &Element{
 			Entry: shared.Entry{
-				Key:       _head,
+				Key:       shared.Key(_head),
 				Value:     nil,
 				Tombstone: false,
 				Version:   0,
