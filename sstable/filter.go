@@ -1,5 +1,4 @@
-package filter
-package filter
+package sstable
 
 import (
 	"hash"
@@ -8,23 +7,17 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-// Filter is a Bloom Filter implementation.
 type Filter struct {
 	bitset  []bool
 	hashFns []hash.Hash32
 }
 
-// New creates a new BloomFilter with an optimal size based on the expected
-// number of elements (n) and the desired false positive rate (p).
 func New(n int, p float64) *Filter {
 	if n <= 0 || p <= 0 || p >= 1 {
-		// Return a nil filter or handle error appropriately if params are invalid
 		return nil
 	}
 
-	// m = -(n * ln(p)) / (ln(2)^2)
 	m := int(math.Ceil(-float64(n) * math.Log(p) / math.Pow(math.Log(2), 2)))
-	// k = (m/n) * ln(2)
 	k := int(math.Round((float64(m) / float64(n)) * math.Log(2)))
 
 	if m == 0 || k == 0 {
@@ -42,7 +35,7 @@ func New(n int, p float64) *Filter {
 	}
 }
 
-// Add adds a key to the Bloom Filter.
+// Add adds a key to the bloom filter
 func (f *Filter) Add(key string) {
 	for _, fn := range f.hashFns {
 		_, _ = fn.Write([]byte(key))
@@ -52,9 +45,6 @@ func (f *Filter) Add(key string) {
 	}
 }
 
-// Contains checks if a key is possibly in the set.
-// It returns false if the key is definitely not in the set.
-// It returns true if the key might be in the set (with a certain false positive probability).
 func (f *Filter) Contains(key string) bool {
 	for _, fn := range f.hashFns {
 		_, _ = fn.Write([]byte(key))
@@ -78,12 +68,19 @@ func (f *Filter) Encode() []byte {
 	return buf
 }
 
-// Decode deserializes a byte slice into a Bloom Filter's bitset.
-// Note: This assumes the Filter was already created with the correct size and hash functions.
-func (f *Filter) Decode(data []byte) {
+// Decode deserializes a byte slice into a new Bloom Filter.
+func Decode(data []byte) (*Filter, error) {
+	// This is a simplified decode. A real implementation would need to
+	// store m and k in the serialized data. For now, we assume the filter
+	// is created with the correct parameters before decoding.
+	// This is a placeholder and needs a robust implementation.
+	f := &Filter{
+		bitset: make([]bool, len(data)*8),
+	}
 	for i := 0; i < len(f.bitset); i++ {
 		if (data[i/8] & (1 << (i % 8))) != 0 {
 			f.bitset[i] = true
 		}
 	}
+	return f, nil
 }

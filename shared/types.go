@@ -1,6 +1,12 @@
 package shared
 
-type Key string
+import "bytes"
+
+type Key []byte
+
+func (k Key) Compare(other Key) int {
+	return bytes.Compare(k, other)
+}
 
 type Entry struct {
 	Key       Key
@@ -10,10 +16,5 @@ type Entry struct {
 }
 
 func CompareKeys(k1, k2 Key) int {
-	if k1 < k2 {
-		return -1
-	} else if k1 > k2 {
-		return 1
-	}
-	return 0
+	return bytes.Compare(k1, k2)
 }

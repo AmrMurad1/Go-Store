@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/AmrMurad1/Go-Store/shared"
+	"github.com/klauspost/compress/s2"
 )
 
 type SSTable struct {
@@ -16,6 +17,7 @@ type SSTable struct {
 	indexRecords []shared.IndexRecord
 	meta         shared.MetaBlock
 	footer       shared.Footer
+	filter       *Filter
 }
 
 func Open(filename string) (*SSTable, error) {
@@ -101,16 +103,30 @@ func Open(filename string) (*SSTable, error) {
 		return nil, err
 	}
 
+	filterBytes := make([]byte, sstable.footer.FilterSize)
+	if _, err := file.ReadAt(filterBytes, sstable.footer.FilterOffset); err != nil {
+		return nil, err
+	}
+
+	sstable.filter, err = Decode(filterBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	return sstable, nil
 }
 
 func (s *SSTable) Get(key shared.Key) (*shared.Entry, error) {
-	if key < s.meta.MinKey || key > s.meta.MaxKey {
+	if key.Compare(s.meta.MinKey) < 0 || key.Compare(s.meta.MaxKey) > 0 {
+		return nil, nil
+	}
+
+	if !s.filter.Contains(string(key)) {
 		return nil, nil
 	}
 
 	indexRecordIndex := sort.Search(len(s.indexRecords), func(i int) bool {
-		return s.indexRecords[i].LastKey >= key
+		return s.indexRecords[i].LastKey.Compare(key) >= 0
 	})
 
 	if indexRecordIndex == len(s.indexRecords) {
@@ -124,20 +140,31 @@ func (s *SSTable) Get(key shared.Key) (*shared.Entry, error) {
 		return nil, err
 	}
 
-	blockReader := bytes.NewReader(dataBlockBytes)
+	decompressedBlock, err := s2.Decode(nil, dataBlockBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	blockReader := bytes.NewReader(decompressedBlock)
+	var prevKey shared.Key
 	for blockReader.Len() > 0 {
-		var keyLen, valLen uint32
-		var tombstone bool
-
-		if err := binary.Read(blockReader, binary.LittleEndian, &keyLen); err != nil {
+		var lcp, suffixLen uint16
+		if err := binary.Read(blockReader, binary.LittleEndian, &lcp); err != nil {
 			return nil, err
 		}
-		currentKeyBytes := make([]byte, keyLen)
-		if _, err := io.ReadFull(blockReader, currentKeyBytes); err != nil {
+		if err := binary.Read(blockReader, binary.LittleEndian, &suffixLen); err != nil {
 			return nil, err
 		}
-		currentKey := shared.Key(currentKeyBytes)
+		suffix := make([]byte, suffixLen)
+		if _, err := io.ReadFull(blockReader, suffix); err != nil {
+			return nil, err
+		}
 
+		currentKey := make(shared.Key, lcp+suffixLen)
+		copy(currentKey, prevKey[:lcp])
+		copy(currentKey[lcp:], suffix)
+
+		var valLen uint32
 		if err := binary.Read(blockReader, binary.LittleEndian, &valLen); err != nil {
 			return nil, err
 		}
@@ -146,17 +173,19 @@ func (s *SSTable) Get(key shared.Key) (*shared.Entry, error) {
 			return nil, err
 		}
 
+		var tombstone bool
 		if err := binary.Read(blockReader, binary.LittleEndian, &tombstone); err != nil {
 			return nil, err
 		}
 
-		if currentKey == key {
+		if currentKey.Compare(key) == 0 {
 			return &shared.Entry{
 				Key:       currentKey,
 				Value:     value,
 				Tombstone: tombstone,
 			}, nil
 		}
+		prevKey = currentKey
 	}
 
 	return nil, nil

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/AmrMurad1/Go-Store/shared"
-	"github.com/AmrMurad1/Go-Store/sstable/filter"
 	"github.com/klauspost/compress/s2"
 )
 
@@ -19,7 +18,7 @@ type BlockWriter struct {
 	dataBlockBuf  bytes.Buffer
 	indexRecords  []shared.IndexRecord
 	meta          shared.MetaBlock
-	filter        *filter.Filter
+	filter        *Filter
 	currentOffset int64
 	entryCounter  uint64
 	prevKey       shared.Key
@@ -44,7 +43,7 @@ func NewBlockWriter(filename string, config *SSTableConfig) (*BlockWriter, error
 		meta: shared.MetaBlock{
 			Timestamp: time.Now().UnixNano(),
 		},
-		filter: filter.New(config.ExpectedEntryCount, config.FilterFalsePositiveRate),
+		filter: New(config.ExpectedEntryCount, config.FilterFalsePositiveRate),
 	}, nil
 }
 
