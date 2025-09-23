@@ -272,8 +272,31 @@ func (m *SSManager) fixLevels() error {
 }
 
 func (m *SSManager) compactSSTables(sstables []*SSTable, outputPath string, deleteTombstones bool) (*SSTable, error) {
-	log.Printf("Compaction placeholder: would compact %d SSTables to %s", len(sstables), outputPath)
-	return nil, nil
+	if len(sstables) == 0 {
+		return nil, nil
+	}
+
+	if len(sstables) == 1 {
+		return sstables[0], nil
+	}
+
+	merged := sstables[0]
+	var err error
+
+	for i := 1; i < len(sstables); i++ {
+		newOutput := fmt.Sprintf("%s.tmp.%d", outputPath, i)
+
+		merged, err = compact(newOutput, merged, sstables[i], deleteTombstones, m.config)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := os.Rename(fmt.Sprintf("%s.tmp.%d", outputPath, len(sstables)-1), outputPath); err != nil {
+		return nil, fmt.Errorf("failed to rename compacted SSTable: %w", err)
+	}
+
+	return Open(outputPath)
 }
 
 func (m *SSManager) Close() error {
