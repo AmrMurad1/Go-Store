@@ -47,13 +47,14 @@ func (m *Memtable) recover(walDir string) error {
 		if !file.IsDir() && filepath.Ext(file.Name()) == ".log" {
 			oldWal, err := NewWal(walDir, file.Name())
 			if err != nil {
+
 				return fmt.Errorf("could not open old WAL file %s: %w", file.Name(), err)
 			}
 			walFiles = append(walFiles, oldWal)
 		}
 	}
 
-    //sorting the files in the OS order
+	//sorting the files in the OS order
 	for _, oldWal := range walFiles {
 		entries, err := oldWal.Retrieve()
 		if err != nil {
@@ -107,6 +108,38 @@ func (m *Memtable) Get(key shared.Key) (shared.Entry, bool) {
 	return m.skiplist.Get(key)
 }
 
+func (m *Memtable) Delete(key shared.Key) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
+	entry := shared.Entry{
+		Key:       key,
+		Value:     nil,
+		Tombstone: true,
+	}
 
+	walEntry := WALEntry{
+		Key:   string(key),
+		Value: nil,
+	}
 
+	if err := m.wal.Append(walEntry); err != nil {
+		return err
+	}
+
+	sizeChange := m.skiplist.Set(entry)
+	m.size += sizeChange
+	return nil
+}
+
+func (m *Memtable) All() []shared.Entry {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.skiplist.All()
+}
+
+func (m *Memtable) Size() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.size
+}
