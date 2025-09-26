@@ -33,6 +33,11 @@ func NewWal(dir, filename string) (*Wal, error) {
 }
 
 func (w *Wal) Open() error {
+
+	if err := os.MkdirAll(w.dir, 0755); err != nil {
+		return fmt.Errorf("WAL %q cannot create directory: %v", w.dir, err)
+	}
+
 	file, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("WAL %q cannot open file: %v", w.path, err)
